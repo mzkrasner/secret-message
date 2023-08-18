@@ -23,9 +23,6 @@ npm run generate
 ```bash
 npm run dev
 ```
-- Open [http://localhost:3000](http://localhost:3000) with your browser to see the result and generate issuer instances
-- Open [http://localhost:3000/powerup](http://localhost:3000/powerup) with your browser to generate PowerUP instances
-- Open [http://localhost:3000/query](http://localhost:3000/query) to test some pre-written queries
 
 ## Learn More
 
