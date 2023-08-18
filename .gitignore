@@ -1,2 +1,4 @@
 .next
+.env.local
+admin_seed.txt
 node_modules/*

@@ -1,0 +1,10 @@
+type Profile @loadModel(id: "$PROFILE_ID") {
+    id: ID!
+}
+
+type Organization @createModel(accountRelation: LIST) {
+    author: DID! @documentAccount
+    name: String! @string(maxLength: 100)
+    profileId: StreamID! @documentReference(model: "Profile")
+    members: [Profile] @relationDocument(property: "profileId")
+}

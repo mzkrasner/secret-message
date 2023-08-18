@@ -4,6 +4,26 @@ import { toString as uint8ArrayToString } from "uint8arrays/to-string";
 import { checkAndSignAuthMessage } from '@lit-protocol/lit-node-client';
 
 /**
+ * Starts Lit Client in background. should be run upon starting of project.
+ *
+ * @param {Window} window the window of the project, to which it attaches
+ * a litNodeClient
+ */
+
+// export async function startLitClient(window: Window) {
+//   console.log("Starting Lit Client...");
+//   const client = new LitJsSdk.LitNodeClientNodeJs(window);
+//   client.connect();
+//   window.litNodeClient = client;
+// }
+
+// declare global {
+//   interface Window {
+//     [index: string]: any;
+//   }
+// }
+
+/**
  * This function encodes into base 64.
  * it's useful for storing symkeys and files in ceramic
  * @param {Uint8Array} input a file or any data
@@ -125,22 +145,22 @@ export async function _decryptWithLit(
   const toDecrypt = uint8ArrayToString(encryptedSymmKey, "base16");
   console.log("toDecrypt", toDecrypt);
   // decrypt the symmetric key
-  let decryptedSymmKey;
-  if (accessControlConditionType === "accessControlConditions") {
-    decryptedSymmKey = await window.litNodeClient.getEncryptionKey({
+  // let decryptedSymmKey;
+  // if (accessControlConditionType === "accessControlConditions") {
+    let decryptedSymmKey =  await window.litNodeClient.getEncryptionKey({
       accessControlConditions,
       toDecrypt,
       chain,
       authSig,
     });
-  } else if (accessControlConditionType === "evmContractConditions") {
-    decryptedSymmKey = await window.litNodeClient.getEncryptionKey({
-      evmContractConditions: accessControlConditions,
-      toDecrypt,
-      chain,
-      authSig,
-    });
-  }
+  // } else if (accessControlConditionType === "evmContractConditions") {
+  //   decryptedSymmKey =  await window.litNodeClient.getEncryptionKey({
+  //     evmContractConditions: accessControlConditions,
+  //     toDecrypt,
+  //     chain,
+  //     authSig,
+  //   });
+  // }
   console.log("decryptedSymKey", decryptedSymmKey);
 
   // decrypt the files
@@ -149,6 +169,7 @@ export async function _decryptWithLit(
     decryptedSymmKey
   );
   const decryptedString = await decryptedFiles["string.txt"].async("text");
+  // console.log(decryptedString)
   return decryptedString;
 }
 

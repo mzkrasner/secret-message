@@ -1,0 +1,82 @@
+@import "./colors.module.scss";
+.title {
+  font-weight: regular;
+}
+
+.formGroup {
+  margin-bottom: 10px;
+  font-size: 18px;
+  label {
+    display: block;
+    padding-bottom: 3px;
+  }
+  input {
+    border: 2px solid black;
+    color: #333;
+    border-radius: 5px;
+    font-size: 16px;
+    padding: 5px 15px;
+  }
+}
+
+.buttonContainer {
+  width: 240px;
+  display: flex; 
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+.buttonContainer button {
+  width: 100%;
+}
+
+.postContainer {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  margin: auto; 
+  flex-grow: 1;
+  padding: 0;
+  width: fit-content;
+  height: 50rem;
+  width: 75%;
+  align-items: left;
+  // width: calc(100% + 5px);
+}
+
+.post {
+  display: flex;
+  margin: auto;
+  position: relative;
+  flex-direction: column;
+  word-wrap: break-word;
+  width: 60%;
+}
+
+.homeContainer {
+  height: 100%;
+  min-height: 90vh;
+  width: 100%;
+  margin: auto;
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  word-wrap: break-word;
+  padding: 1rem;
+  border-style: groove;
+  border-width: .1rem;
+  border-color: #333;
+}
+
+
+.postInput {
+  border: none;
+  border-bottom: 1px solid $borders;
+  color: white;
+
+  height: 120px;
+  
+  padding: 10px 15px;
+  background-color: $bgColor;
+}
+

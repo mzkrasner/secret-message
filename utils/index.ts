@@ -50,5 +50,17 @@ export const authenticateCeramic = async (ceramic: CeramicApi, compose: ComposeC
   // Set our Ceramic DID to be our session DID.
   compose.setDID(session.did)
   ceramic.did = session.did
-  return
+  return session.did
+}
+
+export const connectWallet = async() => {
+  // We enable the ethereum provider to get the user's addresses.
+  const ethProvider = window.ethereum;
+  // request ethereum accounts.
+  const addresses = await ethProvider.enable({
+    method: "eth_requestAccounts",
+  });
+  const accountId = await getAccountId(ethProvider, addresses[0])
+  const authMethod = await EthereumWebAuth.getAuthMethod(ethProvider, accountId)
+  return accountId;
 }

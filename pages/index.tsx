@@ -1,53 +1,66 @@
 import type { NextPage } from "next";
-import Head from "next/head";
-import Image from "next/image";
-import { useState, useEffect } from "react";
-import type { BasicProfile } from "@datamodels/identity-profile-basic";
-import { startLitClient } from "../utils/client";
+import { useEffect, useState } from "react";
 import {
   _encryptWithLit,
   _decryptWithLit,
   encodeb64,
   decodeb64,
 } from "../utils/lit";
-import ceramicLogo from "../public/ceramic.png";
 import { useCeramicContext } from "../context";
+import { PostProps } from "../types";
+import Head from "next/head";
+import Post from "../components/post.component";
+import styles from "../styles/Home.module.scss";
+import React from "react";
+import * as LitJsSdk from "@lit-protocol/lit-node-client-nodejs";
+import { checkAndSignAuthMessage } from "@lit-protocol/lit-node-client";
 import { authenticateCeramic } from "../utils";
-import styles from "../styles/Home.module.css";
+import { startLitClient } from "../utils/client";
+
+type Profile = {
+  [key: string]: any;
+  id?: any;
+  name?: string;
+  username?: string;
+  description?: string;
+  gender?: string;
+  emoji?: string;
+};
 
 const Home: NextPage = () => {
   const clients = useCeramicContext();
   const { ceramic, composeClient } = clients;
-  const [profile, setProfile] = useState<BasicProfile | undefined>();
+  const [newPost, setNewPost] = useState("");
+  const [address, setAddress] = useState("");
+  const [session, setSession] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [account, setAccount] = useState("");
   const [loading, setLoading] = useState<boolean>(false);
-  const [val, setVal] = useState("");
-  const [res, setRes] = useState("");
+  const [posts, setPosts] = useState<PostProps[] | []>([]);
   const [lit, setLit] = useState<any>();
-  const chain = "polygon";
+  const chain = "ethereum";
+  let alerted = false;
 
-  const accessControlConditions = [
-    {
-      contractAddress: "",
-      standardContractType: "",
-      chain: "ethereum",
-      method: "eth_getBalance",
-      parameters: [":userAddress", "latest"],
-      returnValueTest: {
-        comparator: ">=",
-        value: "1000000000000", // 0.000001 ETH
-      },
-    },
-  ];
+  async function isConnected() {
+    const accounts = await window.ethereum.request({ method: "eth_accounts" });
+    if (accounts.length) {
+      console.log(`You're connected to: ${accounts[0]}`);
+      setAccount(accounts[0].toLowerCase());
+    } else {
+      console.log("Metamask is not connected");
+    }
+  }
 
   const handleLogin = async () => {
     await authenticateCeramic(ceramic, composeClient);
+    setLoggedIn(true);
     await getProfile();
     const thisLit = await startLitClient(window);
     setLit(thisLit);
+    getPosts();
   };
 
   const getProfile = async () => {
-    setLoading(true);
     if (ceramic.did !== undefined) {
       const profile = await composeClient.executeQuery(`
         query {
@@ -62,159 +75,289 @@ const Home: NextPage = () => {
           }
         }
       `);
-      setProfile(profile?.data?.viewer?.basicProfile);
-      setLoading(false);
     }
   };
 
-  const createMessage = async () => {
+  const createPost = async () => {
     setLoading(true);
-    if (ceramic.did !== undefined && val.length) {
-      const item = await _encryptWithLit(val, accessControlConditions, chain);
-      const stringified = JSON.stringify(accessControlConditions);
-      const b64 = new TextEncoder().encode(stringified);
-      const encoded = await encodeb64(b64);
-      console.log(item);
-      const query = await composeClient.executeQuery(`
+    if (!address || !newPost) {
+      alert("You are missing a required entry field");
+      setLoading(false);
+      return;
+    }
+    if (!(address.length === 42)) {
+      alert("Please enter a valid Eth address");
+      setAddress("");
+      setLoading(false);
+      return;
+    }
+    const accessControlConditions = [
+      {
+        contractAddress: "",
+        standardContractType: "",
+        chain,
+        method: "",
+        parameters: [":userAddress"],
+        returnValueTest: {
+          comparator: "=",
+          value: address,
+        },
+      },
+    ];
+
+    if (ceramic.did !== undefined) {
+      const profile: Profile = await composeClient.executeQuery(`
+        query {
+          viewer {
+            basicProfile {
+              id
+              name
+            }
+          }
+        }
+      `);
+      if (
+        profile &&
+        profile.data?.viewer.basicProfile?.name &&
+        address.length
+      ) {
+        const item = await _encryptWithLit(
+          newPost,
+          accessControlConditions,
+          chain
+        );
+        const stringified = JSON.stringify(accessControlConditions);
+        const b64 = new TextEncoder().encode(stringified);
+        const encoded = await encodeb64(b64);
+        const post = await composeClient.executeQuery(`
         mutation {
-          createMessage(input: {
+          createPosts(input: {
             content: {
-              encryptedMessage: "${item[0]}"
+              body: """${item[0]}"""
+              to: "${address}"
+              created: "${new Date().toISOString()}"
+              profileId: "${profile.data.viewer.basicProfile.id}"
               symKey: "${item[1]}"
               chain: "${chain}"
               accessControlConditions: "${encoded}"
               accessControlConditionType: "accessControlConditions"
             }
-          }) 
+          })
           {
             document {
-              encryptedMessage
+              body
+            }
+          }
+        }
+      `);
+        getPosts();
+        setNewPost("");
+        setAddress("");
+        setLoading(false);
+        alert("Created post.");
+      } else {
+        setLoading(false);
+        alert(
+          "Failed to fetch profile for authenticated user. Please register a profile."
+        );
+        window.location.href=('/profile')
+      }
+    }
+  };
+  const getPosts = async () => {
+    const res: Res = await composeClient.executeQuery(`
+      query {
+        postsIndex (last:300) {
+          edges {
+            node {
+              id
+              body
+              to
+              created
               symKey
               chain
               accessControlConditions
               accessControlConditionType
-            }
-          }
-        }
-      `);
-      console.log(query);
-      setRes(JSON.stringify(query))
-      await getProfile();
-      setLoading(false);
-    }
-    setVal("");
-  };
-
-  const decryptMessage = async () => {
-    setLoading(true);
-    if (ceramic.did !== undefined) {
-      const query = await composeClient.executeQuery(`
-        query {
-          messageIndex(last: 1){
-            edges{
-              node{
-                encryptedMessage
-                symKey
-                chain
-                accessControlConditions
-                accessControlConditionType
+              profile {
+                id
+                name
+                username 
+                emoji
               }
             }
           }
         }
-      `);
-      const results = query.data?.messageIndex?.edges[0].node;
-      const encryptedMessage = await decodeb64(results.encryptedMessage);
-      const symKey = await decodeb64(results.symKey);
-      const accessControl = await decodeb64(results.accessControlConditions);
-      const decoded = new TextDecoder().decode(accessControl);
-      const accessControlConditionType = results.accessControlConditionType;
-      console.log(encryptedMessage, symKey, chain, JSON.parse(decoded), accessControlConditionType);
-      const item = await _decryptWithLit(
-        encryptedMessage,
-        symKey,
-        JSON.parse(decoded),
-        chain
-      );
-      console.log(item);
-      if(typeof(item) === 'string'){
-        setRes(item)
       }
-      await getProfile();
-      setLoading(false);
+    `);
+    const posts: PostProps[] = [];
+    type Res = {
+      [key: string]: any;
+    };
+
+    res.data.postsIndex.edges.map(
+      (post: {
+        node: {
+          profile: { id: any; name: any; username: any; emoji: any };
+          body: any;
+          created: any;
+          id: any;
+          to: any;
+          symKey: any;
+          chain: any;
+          accessControlConditions: any;
+          accessControlConditionType: any;
+        };
+      }) => {
+        if (post.node) {
+          posts.push({
+            author: {
+              id: post.node.profile.id,
+              name: post.node.profile.name,
+              username: post.node.profile.username,
+              emoji: post.node.profile.emoji,
+            },
+            post: {
+              body: post.node.body,
+              created: post.node.created,
+              id: post.node.id,
+              to: post.node.to,
+              symKey: post.node.symKey,
+              chain: post.node.chain,
+              accessControlConditions: post.node.accessControlConditions,
+              accessControlConditionType: post.node.accessControlConditionType,
+            },
+          });
+        }
+      }
+    );
+    // posts.sort((a, b) => {
+    //   const date1: Date = new Date(b.post.created)
+    //   const date2: Date = new Date(a.post.created)
+    //   const returnVal: boolean = date1 < date2;
+    //   return returnVal
+    // })
+    // // posts[0].post.created
+    // // posts.sort((a,b)=> (new Date(b.post.created) - new Date(a.post.created)))
+    if (posts.length == 0) {
+      if (!alerted) {
+        // alert(
+        //   "There's nothing here! Try posting with a registered profile or see the README to upgrade to claynet to see other developer's posts."
+        // );
+        // window.location.href=('/profile')
+        alerted = true;
+      }
     }
+    const items = posts.reverse();
+    setPosts(items);
   };
 
-  /**
-   * On load check if there is a DID-Session in local storage.
-   * If there is a DID-Session we can immediately authenticate the user.
-   * For more details on how we do this check the 'authenticateCeramic function in`../utils`.
-   */
   useEffect(() => {
     if (localStorage.getItem("did")) {
       handleLogin();
+    } else {
+      setLoggedIn(false);
     }
   }, []);
 
   return (
-    <div className={styles.container}>
+    <div className={styles.homeContainer}>
       <Head>
-        <title>Create Next App</title>
-        <meta name="description" content="Generated by create ceramic app" />
+        <title>Ceramic Social</title>
+        {/* TODO: UPDATE FAVICON */}
         <link rel="icon" href="/favicon.ico" />
       </Head>
-
-      <main className={styles.main}>
-        {profile === undefined && ceramic.did === undefined ? (
+      {loggedIn ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            padding: "3rem",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              position: "relative",
+              width: "100%",
+              flexDirection: "column",
+              marginBottom: "5rem",
+              justifyContent: "center",
+            }}
+          >
+            <textarea
+              value={newPost}
+              maxLength={100}
+              style={{
+                width: "70%",
+                height: "2rem",
+                display: "block",
+                margin: "auto",
+              }}
+              placeholder="Message Here"
+              className={styles.postInput}
+              onChange={(e) => {
+                setNewPost(e.target.value);
+              }}
+            />
+            <br></br>
+            <textarea
+              value={address}
+              maxLength={100}
+              style={{
+                width: "70%",
+                height: "2rem",
+                display: "block",
+                margin: "auto",
+              }}
+              placeholder="Recipient Eth Address Here"
+              className={styles.postInput}
+              onChange={(e) => {
+                setAddress(e.target.value);
+              }}
+            />
+            <button
+              style={{
+                width: "5rem",
+                height: "2.5rem",
+                backgroundColor: "transparent",
+                borderStyle: "groove",
+                borderWidth: ".01rem",
+                borderColor: "orange",
+                margin: "1rem auto",
+              }}
+              onClick={() => {
+                createPost();
+              }}
+            >
+              {loading ? "Sharing" : "Share"}
+            </button>
+          </div>
+          <div style={{ margin: "auto", alignItems: "center", width: "100%" }}>
+            {posts.map((post) => (
+              <Post author={post.author} post={post.post} key={post.post.id} />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", justifyContent: "center" }}>
           <button
+            style={{
+              width: "10rem",
+              backgroundColor: "transparent",
+              borderStyle: "groove",
+              borderWidth: ".01rem",
+              borderColor: "orange",
+            }}
             onClick={() => {
               handleLogin();
             }}
           >
-            Login
+            Authenticate
           </button>
-        ) : (
-          <>
-            {" "}
-            <div className={styles.formGroup2}>
-              <label>Result </label>
-              <textarea
-                style={{"height": "20rem", "width": "50rem",  "padding": "1rem"}}
-                value={res}
-                onChange={(e) => {
-                  setRes(e.target.value);
-                }}
-              />
-            </div>
-            <div className={styles.form}>
-              <div className={styles.formGroup}>
-                <label>Input Message to Encrypt</label>
-                <textarea
-                  style={{"height": "10rem", "width": "50rem", "padding": "1rem"}}
-                  value={val}
-                  onChange={(e) => {
-                    setVal(e.target.value);
-                  }}
-                />
-              </div>
-              <button
-                onClick={() => {
-                  createMessage();
-                }}
-              >
-                {loading ? "Loading..." : "Create Message"}
-              </button>
-              <button
-                onClick={() => {
-                  decryptMessage();
-                }}
-              >
-                {loading ? "Loading..." : "Decrypt Message"}
-              </button>
-            </div>
-          </>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 };
