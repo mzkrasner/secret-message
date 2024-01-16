@@ -38,7 +38,7 @@ const Home: NextPage = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [posts, setPosts] = useState<PostProps[] | []>([]);
   const [lit, setLit] = useState<any>();
-  const [userLocation, setUserLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState<any>();
   const chain = "ethereum";
   let alerted = false;
 
