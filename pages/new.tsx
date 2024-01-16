@@ -261,7 +261,7 @@ const Home: NextPage = () => {
       console.log("Geolocation not supported");
     }
 
-    function success(position) {
+    function success(position: any) {
       const latitude = position.coords.latitude;
       const longitude = position.coords.longitude;
       setUserLocation({ latitude, longitude });
@@ -276,6 +276,7 @@ const Home: NextPage = () => {
   };
 
   useEffect(() => {
+    getUserLocation();
     if (localStorage.getItem("did")) {
       handleLogin();
     } else {
